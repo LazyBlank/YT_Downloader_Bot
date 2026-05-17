@@ -1,0 +1,47 @@
+name: Download And Send
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        required: true
+      quality:
+        required: true
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Install yt-dlp
+        run: |
+          pip install yt-dlp
+
+      - name: Download video
+        run: |
+          yt-dlp \
+          -f "bestvideo[height<=${{ github.event.inputs.quality }}]+bestaudio/best[height<=${{ github.event.inputs.quality }}]" \
+          --merge-output-format mp4 \
+          -o video.mp4 \
+          "${{ github.event.inputs.url }}"
+
+      - name: Check size
+        run: |
+          SIZE=$(du -m video.mp4 | cut -f1)
+
+          echo "Size: $SIZE MB"
+
+          if [ "$SIZE" -gt 100 ]; then
+            echo "File too large"
+            exit 1
+          fi
+
+      - name: Send to Telegram
+        run: |
+          curl -F chat_id=${{ secrets.CHAT_ID }} \
+               -F video=@video.mp4 \
+               https://api.telegram.org/bot${{ secrets.BOT_TOKEN }}/sendVideo
+
+      - name: Cleanup
+        run: rm -f video.mp4
